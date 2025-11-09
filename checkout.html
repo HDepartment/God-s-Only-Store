@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Checkout</title>
+  <meta name="theme-color" content="#fffafc" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root{
+      --bg:#fffafc; --card:#fff; --accent:#ff6f91; --muted:#666;
+      --success:#2e7d32; --danger:#c62828; --maxwidth:900px;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111}
+    .wrap{max-width:var(--maxwidth);margin:18px auto;padding:16px}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.06)}
+    h1{margin:0;font-size:20px}
+    .ussd-container{margin-top:12px;display:flex;flex-direction:column;gap:12px}
+    .ussd-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .ussd{margin-top:0;padding:18px;border-radius:10px;font-weight:800;font-size:18px;text-align:center;background:linear-gradient(180deg,#fff,#fff8fb);border:1px solid rgba(0,0,0,0.04);word-break:break-all}
+    .copy-btn{background:none;border:none;color:var(--accent);font-size:18px;cursor:pointer;padding:8px;border-radius:6px;transition:background 0.2s}
+    .copy-btn:hover{background:rgba(255,111,145,0.1)}
+    .copy-btn.copied{color:var(--success)}
+    .hint{margin-top:8px;color:var(--muted);text-align:center;font-size:13px}
+    .total-row{margin-top:16px;background:#fff6f8;padding:12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+    .total-row .label{font-size:13px;color:var(--muted);font-weight:700}
+    .total-row .value{font-weight:900;font-size:18px}
+    
+    /* Form styling */
+    .form-group{margin-top:16px}
+    .form-label{display:block;margin-bottom:8px;font-weight:600;color:#333;font-size:14px}
+    .form-input{width:100%;padding:12px;border:1px solid #eee;border-radius:8px;font-size:15px;transition:border 0.2s}
+    .form-input:focus{outline:none;border-color:var(--accent)}
+    
+    .btns{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;justify-content:space-between}
+    .btn{flex:1;min-width:120px;padding:14px;border-radius:10px;border:0;font-weight:800;font-size:15px;cursor:pointer;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px}
+    .primary{background:var(--accent);color:#fff;box-shadow:0 8px 20px rgba(255,111,145,0.12)}
+    .ghost{background:#fff;border:1px solid #eee;color:#222}
+    .dial{background:#fff3e6;border:1px solid #ffd2b3;color:#7a3e00}
+    .note{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+    #msg{margin-top:12px;text-align:center;font-weight:700;display:none}
+    .debug{font-family:monospace;font-size:12px;color:var(--danger);white-space:pre-wrap;margin-top:10px;display:none}
+    
+    /* Mobile improvements */
+    .mobile-warning {display:none; background:#fff3cd; border:1px solid #ffeaa7; border-radius:8px; padding:12px; margin:12px 0; text-align:center;}
+    
+    /* Loading spinner */
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @media (max-width:768px){
+      .btns{flex-direction:column;}
+      .btn{width:100%; margin-bottom:8px;}
+      .wrap{padding:8px;}
+      .card{padding:14px;}
+      .ussd{padding:14px; font-size:16px;}
+      .mobile-warning{display:block;}
+      .total-row{flex-direction:column; gap:8px; text-align:center;}
+      .ussd-header{flex-direction:column; gap:12px; align-items:center;}
+      .ussd-header h3{margin:0; font-size:16px;}
+    }
+    
+    @media (max-width:520px){
+      .ussd{font-size:14px;padding:12px}
+      .btn{font-size:14px;padding:14px;border-radius:10px}
+      .total-row .value{font-size:16px}
+      .wrap{padding:6px}
+      h1{font-size:18px}
+      .form-input{font-size:16px; padding:14px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="htitle">
+      <h1 id="htitle">Payments</h1>
+
+      <div class="mobile-warning">
+        📱 <strong>Mobile Tip:</strong> Tap "Dial USSD" to automatically open your phone dialer with payment code.
+      </div>
+
+      <div class="ussd-container">
+        <div class="ussd-header">
+          <h3>MTN Mobile Money Payment</h3>
+          <button id="copyUssdBtn" class="copy-btn" aria-label="Copy USSD code">
+            <i class="far fa-copy"></i> Copy
+          </button>
+        </div>
+        
+        <div id="ussdBox" class="ussd" aria-live="polite">
+          <span id="ussdCode">*182*1*1*0785115663*0#</span>
+        </div>
+        
+        <div class="hint">
+          <i class="fas fa-mobile-alt"></i> Tap <strong>"Dial USSD"</strong> below to open your phone dialer
+        </div>
+
+        <a id="dialBtn" class="btn dial" role="button" href="#">
+          <i class="fas fa-phone"></i> Dial USSD
+        </a>
+      </div>
+
+      <div class="form-group">
+        <label for="payerName" class="form-label">
+          <i class="fas fa-user"></i> Name as registered on your mobile money account
+        </label>
+        <input type="text" id="payerName" class="form-input" 
+               placeholder="Enter the name registered with your phone number" 
+               required>
+        <div class="hint" style="text-align:left; margin-top:4px;">
+          This helps us verify your payment. Must match your mobile money account name.
+        </div>
+      </div>
+
+      <div class="total-row" aria-live="polite" role="status">
+        <div class="label">Total to pay</div>
+        <div id="displayTotal" class="value">RWF 0</div>
+      </div>
+
+      <div class="btns" style="margin-top:14px">
+        <button id="doneBtn" class="btn primary" type="button">
+          <i class="fas fa-check-circle"></i> Done (I paid via MoMo)
+        </button>
+        <button id="codBtn" class="btn ghost" type="button">
+          <i class="fas fa-truck"></i> Pay on Delivery
+        </button>
+      </div>
+
+      <div id="msg" role="status" aria-live="assertive"></div>
+      <pre id="debug" class="debug" aria-hidden="true"></pre>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="script.js"></script>
+
+  <script>
+  (function(){
+    const MOMO_NUMBER = '0785115663';
+    const USSD_PREFIX = '*182*1*1*';
+    const ussdCodeEl = document.getElementById('ussdCode');
+    const displayTotalEl = document.getElementById('displayTotal');
+    const debugEl = document.getElementById('debug');
+    const msgEl = document.getElementById('msg');
+    const dialBtn = document.getElementById('dialBtn');
+    const doneBtn = document.getElementById('doneBtn');
+    const codBtn = document.getElementById('codBtn');
+    const copyUssdBtn = document.getElementById('copyUssdBtn');
+    const payerNameInput = document.getElementById('payerName');
+
+    function showMsg(text, type='info') {
+      msgEl.style.display = 'block';
+      msgEl.textContent = text;
+      msgEl.style.color = type === 'error' ? getComputedStyle(document.documentElement).getPropertyValue('--danger') : (type === 'success' ? getComputedStyle(document.documentElement).getPropertyValue('--success') : '#222');
+      setTimeout(()=> { msgEl.style.display = 'none'; }, 5000);
+    }
+
+    function showDebug(obj) {
+      debugEl.style.display = 'block';
+      debugEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      console.debug('checkout debug:', obj);
+    }
+
+    // Wait for window.supabase to exist
+    function waitForSupabase(timeout = 5000) {
+      return new Promise(resolve => {
+        const start = Date.now();
+        (function check() {
+          if (window.supabase && typeof window.supabase.from === 'function') return resolve(true);
+          if (Date.now() - start >= timeout) return resolve(false);
+          setTimeout(check, 80);
+        })();
+      });
+    }
+
+    async function getSessionUser() {
+      if (!window.supabase) return null;
+      try {
+        const { data } = await window.supabase.auth.getSession();
+        return data?.session?.user || null;
+      } catch (e) {
+        console.warn('auth.getSession failed', e);
+        return null;
+      }
+    }
+
+    function formatCurrency(n){ return 'RWF ' + Number(n || 0).toLocaleString('en-US') }
+
+    // Get cart total
+    async function getCartTotal() {
+      const url = new URL(window.location.href);
+      const q = url.searchParams.get('total');
+      if (q !== null && q !== '') {
+        const n = Number(q);
+        if (!Number.isNaN(n)) return n;
+      }
+
+      // Try to get total from server cart
+      try {
+        const ready = await waitForSupabase();
+        if (ready && window.supabase) {
+          const user = await getSessionUser();
+          if (user) {
+            const { data: cart, error: cartErr } = await window.supabase.from('cart_items').select('*').eq('user_id', user.id);
+            if (!cartErr && Array.isArray(cart) && cart.length) {
+              const productIds = cart.map(c=>c.product_id);
+              const { data: products } = await window.supabase.from('products').select('id,price').in('id', productIds);
+              const map = {}; (products||[]).forEach(p=>map[p.id] = Number(p.price||0));
+              return cart.reduce((s,c)=> s + ((map[c.product_id]||0) * (Number(c.quantity||1))), 0);
+            }
+          }
+        }
+      } catch(e){ console.warn('server cart read failed', e) }
+
+      // Try local tempCart as fallback
+      try {
+        const tempCart = localStorage.getItem('echad_temp_cart');
+        if (tempCart) {
+          const t = JSON.parse(tempCart);
+          if (Array.isArray(t) && t.length) {
+            const ready = await waitForSupabase();
+            if (ready && window.supabase) {
+              const ids = t.map(i=>i.product_id);
+              const { data: products } = await window.supabase.from('products').select('id,price').in('id', ids);
+              const map = {}; (products||[]).forEach(p=>map[p.id] = Number(p.price||0));
+              return t.reduce((s,i)=> s + ((map[i.product_id]||0) * (Number(i.quantity||1))), 0);
+            }
+          }
+        }
+      } catch(e){ console.warn('tempCart parse failed', e) }
+
+      return 0;
+    }
+
+    function updateUssdDisplay(amount) {
+      const rounded = Math.round(Number(amount) || 0);
+      const ussd = `${USSD_PREFIX}${MOMO_NUMBER}*${rounded}#`;
+      ussdCodeEl.textContent = ussd;
+      displayTotalEl.textContent = formatCurrency(amount);
+      const tel = `tel:${encodeURIComponent(USSD_PREFIX + MOMO_NUMBER + '*' + rounded + '#')}`;
+      dialBtn.setAttribute('href', tel);
+      
+      // Handle desktop users clicking dial button
+      dialBtn.onclick = function(e){
+        if (!/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          e.preventDefault();
+          // Copy to clipboard and show alert for desktop users
+          copyToClipboard(ussd);
+          alert('USSD code copied to clipboard: ' + ussd + '\n\nDial this code on your phone to complete payment.');
+        }
+      }
+    }
+
+    // Copy USSD to clipboard
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Visual feedback
+        copyUssdBtn.classList.add('copied');
+        copyUssdBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => {
+          copyUssdBtn.classList.remove('copied');
+          copyUssdBtn.innerHTML = '<i class="far fa-copy"></i> Copy';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        copyUssdBtn.classList.add('copied');
+        copyUssdBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => {
+          copyUssdBtn.classList.remove('copied');
+          copyUssdBtn.innerHTML = '<i class="far fa-copy"></i> Copy';
+        }, 2000);
+      });
+    }
+
+    // Set button loading state
+    function setButtonLoading(btn, isLoading, originalText) {
+      if (isLoading) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> Processing...';
+        btn.dataset.originalText = originalText || btn.textContent;
+      } else {
+        btn.disabled = false;
+        btn.textContent = originalText || btn.dataset.originalText || 'Submit';
+      }
+    }
+
+    async function createOrdersFromCart(paymentMethod) { 
+      const ready = await waitForSupabase();
+      if (!ready || !window.supabase) {
+        showMsg('Backend not ready', 'error');
+        showDebug('window.supabase not initialized by script.js');
+        return false;
+      }
+
+      let payerName = null;
+      if (paymentMethod === 'MTN Mobile Money') {
+        payerName = (payerNameInput.value || '').trim();
+        if (!payerName) {
+          showMsg('Please enter the name registered on your mobile money account', 'error');
+          payerNameInput.focus();
+          return false;
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // THIS IS THE NEW LOGIC
+      // -----------------------------------------------------------------
+      try {
+        // Call the SQL function we just made, named 'place_order'
+        const { data, error } = await window.supabase.rpc('place_order', {
+          payment_method: paymentMethod,
+          payer_name_momo: payerName
+        });
+
+        if (error) {
+          // A network error happened
+          throw new Error(error.message);
+        }
+
+        if (data && data.success === true) {
+          // SUCCESS! The server did all the work.
+          if (typeof updateCartBadge === 'function') {
+            updateCartBadge(); // Clear the (0) from the cart icon
+          }
+          showMsg('Order placed successfully! Thank you!', 'success');
+          return true;
+        } else {
+          // The function ran but hit an error (like "Not enough stock")
+          const errorMsg = data.error || 'Unknown error placing order';
+          showMsg(errorMsg, 'error');
+          showDebug({ step: 'rpc_call_failed', response: data });
+          return false;
+        }
+
+      } catch (e) {
+        // A JavaScript error happened
+        showDebug({ step: 'rpc_exception', error: e });
+        showMsg('Unexpected error: ' + e.message, 'error');
+        return false;
+      }
+    }
+
+    // Attach UI handlers
+    function attachHandlers(total){
+      copyUssdBtn.addEventListener('click', () => {
+        const ussd = ussdCodeEl.textContent;
+        copyToClipboard(ussd);
+      });
+
+      doneBtn.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        
+        const payerName = (payerNameInput.value || '').trim();
+        if (!payerName) {
+          showMsg('Please enter the name registered on your mobile money account', 'error');
+          payerNameInput.focus();
+          return;
+        }
+        
+        setButtonLoading(doneBtn, true, 'Done (I paid via MoMo)');
+        
+        const ok = await createOrdersFromCart('MTN Mobile Money'); 
+        
+        if (ok) {
+          setTimeout(() => window.location.href = 'index.html', 2000);
+        } else {
+          setButtonLoading(doneBtn, false, 'Done (I paid via MoMo)');
+        }
+      });
+
+      codBtn.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        if (!confirm('Confirm order with Pay on Delivery?')) return;
+        
+        setButtonLoading(codBtn, true, 'Pay on Delivery');
+        const ok = await createOrdersFromCart('Cash');
+        
+        if (ok) {
+          setTimeout(() => window.location.href = 'index.html', 2000);
+        } else {
+          setButtonLoading(codBtn, false, 'Pay on Delivery');
+        }
+      });
+    }
+
+    // Initialize page
+    window.addEventListener('load', async ()=> {
+      try {
+        const ready = await waitForSupabase();
+        if (!ready) {
+          showMsg('Backend not ready — try reloading the page', 'error');
+          showDebug('window.supabase was not initialized by script.js within timeout.');
+          return;
+        }
+        
+        const total = await getCartTotal();
+        updateUssdDisplay(total);
+        attachHandlers(total);
+        
+        if (typeof updateCartBadge === 'function') {
+          setTimeout(updateCartBadge, 500);
+        }
+      } catch (error) {
+        console.error('Checkout initialization error:', error);
+        showMsg('Error initializing checkout', 'error');
+      }
+    });
+
+  })();
+  </script>
+</body>
+</html>

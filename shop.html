@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Shop - God's Only Store</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <section id="header">
+        <h4>God's Only Store</h4>
+
+        <div>
+          <ul id="navbar">
+            <a href="#" id="close"><i class="far fa-times-circle"></i></a>
+            <li><a href="index.html">Home</a></li>
+            <li><a class="active" href="shop.html">Shop</a></li>
+            <li><a href="About.html">About</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li>
+              <a href="#" id="cart-toggle-desktop" class="cart-btn" aria-label="Open cart">
+                <i class="fa-solid fa-bag-shopping"></i>
+                <span id="cart-badge" class="badge">0</span>
+              </a>
+            </li>
+            <button id="openModal">Sign-in/Register</button>
+            </ul>
+            <div class="modal" id="modal">
+              <div class="auth-container">
+                <h2 id="form-title">Sign In</h2>
+
+                <!-- Sign In Form -->
+                <form id="signin-form" class="active">
+                  <input type="email" placeholder="Email" required />
+                  <input type="password" placeholder="Password" required />
+                  <button type="submit">Sign In</button>
+                  <a href="#" id="forgotPasswordLink" style="font-size:13px;color:#ff9db1;text-decoration:none;">Forgot password?</a>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form">
+                  <input type="text" placeholder="Full Name" required />
+                  <input type="email" placeholder="Email" required />
+                  <input type="password" placeholder="Password" required />
+                  <input type="password" placeholder="Confirm Password" required />
+                  <button type="submit">Register</button>
+                </form>
+
+                <p class="toggle-text">
+                  Don't have an account? <span id="toggle">Register</span>
+                </p>
+                <button id="closeModal">Close</button>
+              </div>
+            </div>
+            <div id="mobile">
+                <a href="#" id="cart-toggle-mobile" class="cart-btn" aria-label="Open cart">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span id="cart-badge" class="badge">0</span>
+                </a>
+                <i id="bar" class="fas fa-outdent"></i>
+            </div>
+    </section>
+
+  <section id="page-header">
+    <img src="download2.jpg" alt="">
+  </section>
+
+  <section id="product1" class="section-p1">
+    <div id="products-loading" style="text-align:center;padding:40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:32px;color:#ff9db1;"></i>
+      <p style="margin-top:16px;font-size:18px;color:#666;">Loading products...</p>
+    </div>
+
+    <div class="pro-container" id="products-container" style="display:none;"></div>
+
+    <div id="products-empty" style="display:none;text-align:center;padding:60px 20px;">
+      <i class="fas fa-box-open" style="font-size:64px;color:#ddd;"></i>
+      <p style="font-size:18px;color:#666;margin-top:20px;">No products available yet.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-section">
+        <h3>God's Only Store</h3>
+        <p>Your one-stop shop for fashion, beauty, and lifestyle essentials. Quality products, affordable prices.</p>
+      </div>
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="shop.html">Shop</a></li>
+          <li><a href="About.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4>Customer Service</h4>
+        <ul>
+          <li><a href="#">FAQ</a></li>
+          <li><a href="#">Returns</a></li>
+          <li><a href="#">Shipping</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4>Follow Us</h4>
+        <div class="socials">
+          <a href="#"><i class="fab fa-facebook"></i></a>
+          <a href="#"><i class="fab fa-instagram"></i></a>
+          <a href="#"><i class="fab fa-twitter"></i></a>
+          <a href="#"><i class="fab fa-youtube"></i></a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 God's Only Store. All Rights Reserved.</p>
+      <p>@whatis50</p>
+    </div>
+  </footer>
+
+  <!-- Cart Panel -->
+  <aside id="cart-panel" class="cart-panel" aria-hidden="true">
+    <div class="cart-header">
+      <h3>Your Cart</h3>
+      <button id="cart-close" aria-label="Close cart">✕</button>
+    </div>
+    <div id="cart-items" class="cart-items"></div>
+    <div class="cart-footer">
+      <div class="cart-totals">
+        <div>Subtotal</div>
+        <div id="cart-subtotal">—</div>
+      </div>
+      <div class="cart-actions">
+        <button id="checkout" class="accent">Checkout</button>
+        <button id="clear-cart" class="secondary">Clear Cart</button>
+      </div>
+    </div>
+  </aside>
+  <div id="cart-backdrop" class="cart-backdrop" hidden></div>
+
+  <!-- Main cart script -->
+  <script src="script.js"></script>
+
+  <!-- Shop page specific script -->
+  <script>
+    async function loadShopProducts() {
+      const loading = document.getElementById('products-loading');
+      const container = document.getElementById('products-container');
+      const empty = document.getElementById('products-empty');
+
+      loading.style.display = 'block';
+      container.style.display = 'none';
+      empty.style.display = 'none';
+
+      // Wait for supabase to be initialized
+      let attempts = 0;
+      while (!window.supabase && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+
+      if (!window.supabase) {
+        loading.style.display = 'none';
+        empty.style.display = 'block';
+        empty.querySelector('p').textContent = 'Unable to load products.';
+        return;
+      }
+
+      try {
+        const { data: products, error } = await window.supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        loading.style.display = 'none';
+
+        if (error) throw error;
+
+        if (!products || products.length === 0) {
+          empty.style.display = 'block';
+          return;
+        }
+
+        container.style.display = 'flex';
+        container.innerHTML = '';
+
+        products.forEach(product => {
+          const card = document.createElement('div');
+          card.className = 'pro';
+          
+          card.innerHTML = `
+            <img src="${escapeHtml(product.image_url || 'https://via.placeholder.com/300')}" alt="${escapeHtml(product.name)}" style="cursor:pointer;" />
+            <div class="des">
+              <span style="font-size:13px;color:#666;">${escapeHtml(product.description || 'Product')}</span>
+              <h5 style="margin:4px 0;font-size:16px;cursor:pointer;">${escapeHtml(product.name)}</h5>
+              <div class="star">
+                <i class="fas fa-star"></i>
+                <i class="fas fa-star"></i>
+                <i class="fas fa-star"></i>
+                <i class="fas fa-star"></i>
+                <i class="fas fa-star"></i>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                <h4>RWF ${product.price || 0}</h4>
+                <a href="#" class="cart-icon-wrapper" data-product-id="${product.id}" title="Add to cart">
+                  <i class="fa-solid fa-cart-shopping cart-icon"></i>
+                </a>
+              </div>
+              <p style="font-size:12px;color:#666;margin:4px 0 0;">Stock: ${product.stock || 0}</p>
+            </div>
+          `;
+
+          // Click on card (except cart icon) = go to product detail
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.cart-icon-wrapper')) return;
+            window.location.href = `sproduct.html?id=${product.id}`;
+          });
+
+          // Cart icon click = add to cart
+          const cartLink = card.querySelector('.cart-icon-wrapper');
+          if (cartLink) {
+            cartLink.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              if (typeof window.addToCart === 'function') {
+                await window.addToCart(product.id, 1);
+              } else {
+                alert('Cart system not loaded. Please refresh the page.');
+              }
+            });
+          }
+
+          container.appendChild(card);
+        });
+
+      } catch (error) {
+        console.error('Error loading products:', error);
+        loading.style.display = 'none';
+        empty.style.display = 'block';
+        empty.querySelector('p').textContent = 'Error loading products.';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text == null ? '' : String(text);
+      return div.innerHTML;
+    }
+
+    // Load products when page is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadShopProducts);
+    } else {
+      loadShopProducts();
+    }
+  </script>
+</body>
+</html>

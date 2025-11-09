@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Product Details - God's Only Store</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Supabase lib kept (script.js expects window.supabase) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* Page layout (kept same as before) */
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; background: #fff8fb; color:#2a0a20; margin:0; padding:0; }
+    #header { display:flex; align-items:center; justify-content:space-between; padding:18px 28px; background:linear-gradient(180deg,#fff,#fff0f8); }
+    #header h4 { margin:0; color:#2a0a20; }
+    
+
+    .product-detail-container { max-width:1200px; margin:36px auto; padding:12px; }
+    .product-detail { display:grid; grid-template-columns: 1fr 480px; gap:32px; background:transparent; backdrop-filter: blur(4px); padding:28px; border-radius:12px; align-items:start; }
+
+    .product-info h1 { font-size:28px; margin:0 0 8px; color:#2a0a20; }
+    .product-price-large { font-size:28px; color:#ff9db1; font-weight:700; margin:12px 0; }
+    .product-description { color:#555; line-height:1.6; margin:12px 0 18px; }
+    .product-stock { padding:6px 12px; border-radius:8px; display:inline-block; font-weight:700; margin-bottom:10px; }
+    .product-stock.in { background:#e8f5e9; color:#2e7d32; }
+    .product-stock.out { background:#ffecec; color:#c62828; }
+
+    .quantity-selector { display:flex; gap:12px; align-items:center; margin-top:14px; }
+    .quantity-controls { display:flex; align-items:center; border:1px solid #f2d9e6; border-radius:8px; overflow:hidden; }
+    .quantity-controls button { width: 40px; height: 40px; border: 2px solid #ddd; background: white; cursor: pointer; font-size: 22px; color: #000; border-radius: 6px; transition: all 0.2s ease; }
+    .quantity-controls input { width:80px; height:44px; border:0; text-align:center; font-weight:700; font-size:16px; }
+
+    .action-buttons { display:flex; gap:12px; margin-top:18px; }
+    .btn-add-cart { background:#ff9db1; color:#fff; padding:12px 18px; border-radius:10px; border:0; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:8px; }
+    .btn-buy-now { background:#333; color:#fff; padding:12px 18px; border-radius:10px; border:0; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:8px; }
+
+    .product-image-wrap { background:rgba(255,255,255,0.7); padding:12px; border-radius:12px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,0.9); }
+    .product-image-large { width:100%; height:auto; max-height:640px; object-fit:cover; border-radius:10px; display:block; }
+
+    .back-link { display:inline-block; margin-top:18px; color:#ff9db1; text-decoration:none; font-weight:600; }
+    .back-link:hover { text-decoration:underline; }
+
+    @media (max-width:960px) {
+      #mobile{ display: flex; align-items: center; }
+      #mobile i{ color: #1a1a1a; font-size: 24px; padding-left: 20px; }
+      .product-detail { grid-template-columns: 1fr; gap:18px; padding:18px; }
+      .product-image-wrap { order:-1; }
+    }
+  </style>
+</head>
+<body>
+
+    <section id="header">
+        <h4>God's Only Store</h4>
+
+        <div>
+            <ul id="navbar">
+              <a href="#" id="close"><i class="far fa-times-circle"></i></a>
+                <li><a href="index.html">Home</a></li>
+                <li><a class="active" href="shop.html">Shop</a></li>
+                <li><a href="About.html">About</a></li>
+                <li><a href="contact.html">Contact</a></li>
+                <li>
+                    <a href="#" id="cart-toggle-desktop" class="cart-btn" aria-label="Open cart">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                        <span id="cart-badge" class="badge">0</span>
+                    </a>
+                </li>
+                <button id="openModal">Sign-in/Register</button>
+            </ul>
+            
+            <div class="modal" id="modal">
+                <div class="auth-container">
+                    <h2 id="form-title">Sign In</h2>
+
+                    <!-- Sign In Form -->
+                    <form id="signin-form" class="active">
+                        <input type="email" placeholder="Email" required />
+                        <input type="password" placeholder="Password" required />
+                        <button type="submit">Sign In</button>
+                        <a href="#" id="forgotPasswordLink" style="font-size:13px;color:#ff9db1;text-decoration:none;">Forgot password?</a>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="register-form">
+                        <input type="text" placeholder="Full Name" required />
+                        <input type="email" placeholder="Email" required />
+                        <input type="password" placeholder="Password" required />
+                        <input type="password" placeholder="Confirm Password" required />
+                        <button type="submit">Register</button>
+                    </form>
+
+                    <p class="toggle-text">
+                        Don't have an account? <span id="toggle">Register</span>
+                    </p>
+                    <button id="closeModal">Close</button>
+                </div>
+            </div> 
+            <div id="mobile">
+                <a href="#" id="cart-toggle-mobile" class="cart-btn" aria-label="Open cart">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span id="cart-badge" class="badge">0</span>
+                </a>
+                <i id="bar" class="fas fa-outdent"></i>
+            </div>
+    </section>
+
+  <div class="product-detail-container">
+    <a href="shop.html" class="back-link">← Back to Shop</a>
+    <div id="product-loading" style="text-align:center;padding:40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:48px;color:#ff9db1;"></i>
+      <p style="margin-top:20px;font-size:18px;color:#666;">Loading product...</p>
+    </div>
+
+    <div id="product-detail" style="display:none;"></div>
+
+    <div id="product-error" style="display:none;text-align:center;padding:40px;">
+      <i class="fas fa-exclamation-circle" style="font-size:48px;color:#ff9db1;"></i>
+      <p style="margin-top:20px;font-size:18px;color:#666;">Product not found</p>
+    </div>
+  </div>
+
+  <aside id="cart-panel" class="cart-panel" aria-hidden="true">
+    <div class="cart-header">
+      <h3>Your Cart</h3>
+      <button id="cart-close" aria-label="Close cart">✕</button>
+    </div>
+    <div id="cart-items" class="cart-items"></div>
+    <div class="cart-footer">
+      <div class="cart-totals">
+        <div>Subtotal</div>
+        <div id="cart-subtotal">—</div>
+      </div>
+      <div class="cart-actions">
+        <button id="checkout" class="accent">Checkout</button>
+        <button id="clear-cart" class="secondary">Clear Cart</button>
+      </div>
+    </div>
+  </aside>
+  <div id="cart-backdrop" class="cart-backdrop" hidden></div>
+
+  <!-- your main cart/product script -->
+  <script src="script.js"></script>
+
+  <script>
+    // helpers
+    function escapeHtml(text){ const d=document.createElement('div'); d.textContent = text == null ? '' : String(text); return d.innerHTML; }
+    function getProductIdFromURL(){ return new URLSearchParams(window.location.search).get('id'); }
+
+    // Wait helpers for cart funcs (small)
+    function waitForCartFns(max = 60, interval = 100) {
+      return new Promise(resolve => {
+        let tries = 0;
+        const id = setInterval(() => {
+          tries++;
+          const ready = (typeof window.addToCart === 'function') || (typeof window.addToTempCart === 'function') || (typeof window.addToCartFromSupabase === 'function');
+          if (ready || tries >= max) {
+            clearInterval(id);
+            resolve({ ready });
+          }
+        }, interval);
+      });
+    }
+
+    async function loadProductDetail() {
+      const loading = document.getElementById('product-loading');
+      const container = document.getElementById('product-detail');
+      const error = document.getElementById('product-error');
+      const id = getProductIdFromURL();
+      if (!id) { loading.style.display = 'none'; error.style.display = 'block'; return; }
+
+      // ensure cart system initialized (script.js does this)
+      if (typeof initializeCart === 'function') initializeCart();
+      await waitForCartFns(40, 100);
+
+      // wait a short while for window.supabase to be available
+      if (!window.supabase) { await new Promise(r => setTimeout(r, 200)); }
+
+      try {
+        const { data: product, error } = await window.supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        loading.style.display = 'none';
+        if (error) { console.error('Fetch product error', error); error.style.display='block'; error.querySelector('p').textContent='Error: '+(error.message||error); return; }
+        if (!product) { error.style.display='block'; return; }
+
+        container.style.display = 'block';
+        const inStock = !!(product.stock && product.stock > 0);
+
+        container.innerHTML = `
+          <div class="product-detail">
+            <div class="product-info">
+              <h1>${escapeHtml(product.name)}</h1>
+              <div class="product-price-large">RWF ${product.price || 0}</div>
+              <div class="product-stock ${inStock ? 'in' : 'out'}">${inStock ? '<i class="fas fa-check-circle"></i> '+product.stock+' in stock' : '<i class="fas fa-times-circle"></i> Out of stock'}</div>
+              <div class="product-description">${escapeHtml(product.description || 'No description')}</div>
+
+              <div class="quantity-selector">
+                <div style="font-weight:700;">Quantity</div>
+                <div class="quantity-controls" style="margin-left:8px;">
+                  <button id="qty-decrease" ${!inStock?'disabled':''}>−</button>
+                  <input id="quantity-input" type="number" value="1" min="1" max="${product.stock || 1}" />
+                  <button id="qty-increase" ${!inStock?'disabled':''}>+</button>
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <button id="btn-add-cart" class="btn-add-cart" ${!inStock?'disabled':''}><i class="fa-solid fa-cart-shopping"></i> Add to Cart</button>
+                <button id="btn-buy-now" class="btn-buy-now" ${!inStock?'disabled':''}><i class="fa-solid fa-bolt"></i> Buy Now</button>
+              </div>
+
+              <a href="shop.html" class="back-link">← Back to Shop</a>
+            </div>
+
+            <div class="product-image-wrap">
+              <img class="product-image-large" src="${escapeHtml(product.image_url || 'https://via.placeholder.com/800x800/fff0f3/ff9db1?text=No+Image')}" alt="${escapeHtml(product.name)}" />
+            </div>
+          </div>
+        `;
+
+        // interactions
+        const qtyInput = document.getElementById('quantity-input');
+        document.getElementById('qty-increase').addEventListener('click', ()=> {
+          const max = Number(qtyInput.max || 1);
+          let cur = Number(qtyInput.value||1);
+          if (cur < max) qtyInput.value = cur+1;
+        });
+        document.getElementById('qty-decrease').addEventListener('click', ()=> {
+          let cur = Number(qtyInput.value||1);
+          if (cur > 1) qtyInput.value = cur-1;
+        });
+
+        // Add to Cart: use unified API addToCart(productId, qty)
+        document.getElementById('btn-add-cart').addEventListener('click', async () => {
+          const qty = Number(qtyInput.value || 1);
+          try {
+            if (typeof window.addToCart === 'function') {
+              await window.addToCart(product.id, qty);
+              if (typeof updateCartBadge === 'function') updateCartBadge();
+              if (typeof showMessage === 'function') showMessage('Added to cart', 'success');
+            } else if (typeof window.addToTempCart === 'function') {
+              window.addToTempCart(product.id, qty);
+              updateCartBadge && updateCartBadge();
+              showMessage && showMessage('Added to local cart', 'success');
+            } else {
+              alert('Cart not available right now');
+            }
+          } catch (err) {
+            console.error('Add to cart failed', err);
+            alert('Failed to add to cart');
+          }
+        });
+
+        // Buy Now: add item then call global handleCheckoutClick() which will require sign-in if needed
+        document.getElementById('btn-buy-now').addEventListener('click', async () => {
+          const qty = Number(qtyInput.value || 1);
+          try {
+            if (typeof window.addToCart === 'function') {
+              await window.addToCart(product.id, qty);
+            } else if (typeof window.addToTempCart === 'function') {
+              window.addToTempCart(product.id, qty);
+            } else {
+              alert('Cart not available right now');
+              return;
+            }
+            if (typeof updateCartBadge === 'function') updateCartBadge();
+            // now trigger checkout flow
+            if (typeof window.handleCheckoutClick === 'function') window.handleCheckoutClick();
+            else window.location.href = 'checkout.html';
+          } catch (err) {
+            console.error('Buy now failed', err);
+            alert('Failed to process Buy Now.');
+          }
+        });
+
+      } catch (err) {
+        console.error('Product page critical error:', err);
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        error.querySelector('p').textContent = 'Error: ' + (err.message || err);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadProductDetail);
+    } else {
+      loadProductDetail();
+    }
+  </script>
+</body>
+</html>
+
+
