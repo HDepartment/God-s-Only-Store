@@ -426,6 +426,45 @@
     });
 
   })();
+  // Add this to checkout.html to prevent empty cart access
+  document.addEventListener('DOMContentLoaded', async function() {
+    async function getCartItemCount() {
+      let totalItems = 0;
+      
+      // Check if user is logged in (you'll need to include your auth logic)
+      if (typeof currentUser !== 'undefined' && currentUser && typeof supabase !== 'undefined') {
+        try {
+          const { data } = await supabase
+            .from('cart_items')
+            .select('quantity')
+            .eq('user_id', currentUser.id);
+          if (Array.isArray(data)) {
+            totalItems = data.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+          }
+        } catch (error) {
+          console.error('Error getting cart item count:', error);
+        }
+      } else {
+        // Check temp cart for guests
+        try {
+          const cart = JSON.parse(localStorage.getItem('echad_temp_cart') || '[]');
+          if (Array.isArray(cart)) {
+            totalItems = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+          }
+        } catch (e) {
+          console.error('Error reading temp cart:', e);
+        }
+      }
+      
+      return totalItems;
+    }
+
+    const itemCount = await getCartItemCount();
+    if (itemCount === 0) {
+      alert('Your cart is empty! Redirecting to shop...');
+      window.location.href = 'shop.html';
+    }
+  });
   </script>
 </body>
 </html>
