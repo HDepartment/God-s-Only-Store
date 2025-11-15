@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Checkout</title>
-  <link rel="icon" type="image/png" href="favicon.png">
   <meta name="theme-color" content="#fffafc" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
@@ -427,46 +426,51 @@
     });
 
   })();
-  // Add this to checkout.html to prevent empty cart access
-  document.addEventListener('DOMContentLoaded', async function() {
-    async function getCartItemCount() {
-      let totalItems = 0;
+  // Cart check - wait for auth to be ready
+(async function checkCartBeforeCheckout() {
+  // Wait a bit for script.js to initialize
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  let totalItems = 0;
+  
+  // Try to get from server cart if user is logged in
+  if (typeof window.supabase !== 'undefined' && window.supabase) {
+    try {
+      const { data: sessionData } = await window.supabase.auth.getSession();
+      const user = sessionData?.session?.user;
       
-      // Check if user is logged in (you'll need to include your auth logic)
-      if (typeof currentUser !== 'undefined' && currentUser && typeof supabase !== 'undefined') {
-        try {
-          const { data } = await supabase
-            .from('cart_items')
-            .select('quantity')
-            .eq('user_id', currentUser.id);
-          if (Array.isArray(data)) {
-            totalItems = data.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-          }
-        } catch (error) {
-          console.error('Error getting cart item count:', error);
-        }
-      } else {
-        // Check temp cart for guests
-        try {
-          const cart = JSON.parse(localStorage.getItem('echad_temp_cart') || '[]');
-          if (Array.isArray(cart)) {
-            totalItems = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-          }
-        } catch (e) {
-          console.error('Error reading temp cart:', e);
+      if (user) {
+        const { data } = await window.supabase
+          .from('cart_items')
+          .select('quantity')
+          .eq('user_id', user.id);
+        if (Array.isArray(data)) {
+          totalItems = data.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         }
       }
-      
-      return totalItems;
+    } catch (error) {
+      console.warn('Error checking server cart:', error);
     }
-
-    const itemCount = await getCartItemCount();
-    if (itemCount === 0) {
-      alert('Your cart is empty! Redirecting to shop...');
-      window.location.href = 'shop.html';
+  }
+  
+  // If still 0, check temp cart (for guests or as fallback)
+  if (totalItems === 0) {
+    try {
+      const cart = JSON.parse(localStorage.getItem('echad_temp_cart') || '[]');
+      if (Array.isArray(cart)) {
+        totalItems = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      }
+    } catch (e) {
+      console.warn('Error reading temp cart:', e);
     }
-  });
+  }
+  
+  // Only redirect if cart is truly empty
+  if (totalItems === 0) {
+    alert('Your cart is empty! Redirecting to shop...');
+    window.location.href = 'shop.html';
+  }
+})();
   </script>
 </body>
 </html>
-
