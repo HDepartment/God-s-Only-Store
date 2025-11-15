@@ -125,6 +125,8 @@ function initializeSupabase() {
 // ---------------------------
 // Auth state management
 // ---------------------------
+
+
 function setupAuthStateListener() {
   if (!supabase) return;
 
@@ -133,26 +135,16 @@ function setupAuthStateListener() {
       isProcessingAuth = true;
       currentUser = session.user;
 
-      // small delay to let UI stabilize if needed
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 800)); // Increased delay
 
       try {
         currentUserProfile = await getUserProfile(currentUser.id);
-        if (!currentUserProfile) {
-          currentUserProfile = await createUserProfile(currentUser.id);
-        }
-
-        if (currentUserProfile?.is_admin === true) {
-          showMessage('Welcome Admin! Redirecting...', 'success');
-          setTimeout(() => window.location.href = 'admin.html', 900);
-          return;
-        }
-
+        
         updateUIForLoggedInUser(currentUser);
-        await syncTempCartToDatabase?.(); // safe no-op if cart isn't present
+        await syncTempCartToDatabase?.(); 
+        
       } catch (err) {
         console.error('Sign-in listener error', err);
-        showMessage('Sign in error', 'error');
       } finally {
         isProcessingAuth = false;
       }
@@ -164,7 +156,6 @@ function setupAuthStateListener() {
       currentUserProfile = null;
       updateUIForLoggedOutUser();
       showMessage('Signed out', 'info', 2000);
-      // cart updates handled elsewhere (no cart code here)
     }
   });
 }
@@ -181,10 +172,11 @@ async function checkAuthStatus() {
     const user = data?.session?.user || null;
     if (user) {
       currentUser = user;
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       currentUserProfile = await getUserProfile(currentUser.id);
-      if (!currentUserProfile) {
-        currentUserProfile = await createUserProfile(currentUser.id);
-      }
+      
       updateUIForLoggedInUser(currentUser);
       await syncTempCartToDatabase?.();
     } else {
@@ -270,6 +262,10 @@ function setupAuthForms() {
       const email = inputs[0]?.value?.trim();
       const password = inputs[1]?.value;
       const btn = signinForm.querySelector('button[type="submit"]');
+      
+      // Prevent double submission
+      if (btn.disabled) return;
+      
       setButtonLoading(btn, true);
       await handleSignIn(email, password);
       setButtonLoading(btn, false, 'Sign In');
@@ -279,12 +275,20 @@ function setupAuthForms() {
   if (registerForm) {
     registerForm.addEventListener('submit', async function(e) {
       e.preventDefault();
+      
       const inputs = registerForm.querySelectorAll('input');
       const name = inputs[0]?.value?.trim();
       const email = inputs[1]?.value?.trim();
       const password = inputs[2]?.value;
       const confirmPassword = inputs[3]?.value;
       const btn = registerForm.querySelector('button[type="submit"]');
+      
+      // Prevent double submission - THIS IS THE KEY FIX
+      if (btn.disabled) {
+        console.log('🟡 Button already processing, ignoring duplicate submit');
+        return;
+      }
+      
       setButtonLoading(btn, true);
       await handleRegister(name, email, password, confirmPassword);
       setButtonLoading(btn, false, 'Register');
@@ -419,6 +423,9 @@ async function handleRegister(name, email, password, confirmPassword) {
 
   try {
     showModalMessage('Creating account...', 'info');
+    
+    console.log('🟢 [REGISTER] Starting registration for:', email);
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -428,12 +435,26 @@ async function handleRegister(name, email, password, confirmPassword) {
       }
     });
 
-    if (error) throw error;
+    console.log('🟢 [REGISTER] Response received');
+
+    if (error) {
+      console.error('🔴 [REGISTER] Error:', error);
+      
+      // Check if it's a duplicate email error (user was already created)
+      if (error.message.includes('already exists') || error.message.includes('duplicate')) {
+        showModalMessage('This email is already registered. Try signing in instead.', 'error');
+        return;
+      }
+      
+      throw error;
+    }
+
+    console.log('✅ [REGISTER] Success! User created:', data.user?.id);
 
     if (data?.user && !data?.session) {
       showModalMessage('Check your email to confirm your account', 'success');
-    } else {
-      showModalMessage('Registration successful', 'success');
+    } else if (data?.user) {
+      showModalMessage('Registration successful! Welcome!', 'success');
       setTimeout(() => {
         const modal = document.getElementById('modal');
         if (modal) {
@@ -443,7 +464,11 @@ async function handleRegister(name, email, password, confirmPassword) {
       }, 900);
     }
   } catch (error) {
-    showModalMessage(error.message || 'Registration failed', 'error');
+    console.error('🔴 [REGISTER] Exception:', error);
+    
+    // Don't show scary "Database error" - show user-friendly message
+    const userMessage = error.message || 'Registration failed. Please try again.';
+    showModalMessage(userMessage, 'error');
   }
 }
 
@@ -505,7 +530,6 @@ function openProfileSettings() {
         </div>
         
         <div style="padding:20px;">
-          <!-- Full Name -->
           <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Full Name</label>
             <input type="text" id="settingsName" placeholder="Your name" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;" />
@@ -513,7 +537,6 @@ function openProfileSettings() {
             <p id="nameMsg" style="margin:8px 0 0 0;font-size:13px;"></p>
           </div>
 
-          <!-- Email -->
           <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Email</label>
             <input type="email" id="settingsEmail" placeholder="your@email.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;" />
@@ -521,7 +544,6 @@ function openProfileSettings() {
             <p id="emailMsg" style="margin:8px 0 0 0;font-size:13px;"></p>
           </div>
 
-          <!-- Phone -->
           <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Phone Number</label>
             <div style="display:flex;gap:8px;">
@@ -534,7 +556,6 @@ function openProfileSettings() {
             <p id="phoneMsg" style="margin:8px 0 0 0;font-size:13px;"></p>
           </div>
 
-          <!-- Change Password -->
           <div style="margin-bottom:20px;padding:16px;background:${UI.pinkSoft};border-radius:8px;">
             <h3 style="margin:0 0 12px 0;color:#222;font-size:16px;">Change Password</h3>
             <input type="password" id="currentPassword" placeholder="Current password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:8px;font-size:14px;" />
@@ -1000,9 +1021,6 @@ function clearTempCart() {
 // 4. CART OPERATIONS
 // ==============================================
 
-
-
-
 async function clearCart() {
   if (currentUser && supabase) {
     try {
@@ -1022,7 +1040,92 @@ async function clearCart() {
   showMessage('Cart cleared', 'success');
 }
 
+// ---- Replace updateCartItemQuantity ----
+async function updateCartItemQuantity(productId, newQuantity) {
+  const pid = String(productId);
+  if (newQuantity < 1) {
+    await removeFromCart(productId);
+    return;
+  }
 
+  if (currentUser && supabase) {
+    try {
+      await supabase
+        .from('cart_items')
+        .update({ quantity: Number(newQuantity) })
+        .eq('user_id', currentUser.id)
+        .eq('product_id', productId);
+    } catch (error) {
+      console.error('Error updating quantity (DB):', error);
+    }
+  } else {
+    const cart = getTempCart();
+    const item = cart.find(i => String(i.product_id) === pid);
+    if (item) {
+      item.quantity = Number(newQuantity);
+      saveTempCart(cart);
+    }
+  }
+
+  await loadCart();
+  updateCartBadge();
+}
+
+async function syncTempCartToDatabase() {
+  if (!currentUser || !supabase) return;
+
+  const tempCart = getTempCart();
+  if (!Array.isArray(tempCart) || tempCart.length === 0) {
+    await loadCart();
+    return;
+  }
+
+  try {
+    const { data: existingItems = [] } = await supabase
+      .from('cart_items')
+      .select('*')
+      .eq('user_id', currentUser.id);
+
+    for (const tmp of tempCart) {
+      const tmpPidStr = String(tmp.product_id);
+      const tmpQty = Number(tmp.quantity || 0);
+
+      // find existing by string compare (works across number/string stored values)
+      const existing = existingItems.find(e => String(e.product_id) === tmpPidStr);
+
+      if (existing) {
+        // update quantity
+        await supabase
+          .from('cart_items')
+          .update({ quantity: (existing.quantity || 0) + tmpQty })
+          .eq('id', existing.id);
+      } else {
+        // decide whether to insert numeric id or string id
+        const maybeNum = Number(tmpPidStr);
+        const pidToInsert = (Number.isInteger(maybeNum) && String(maybeNum) === tmpPidStr) ? maybeNum : tmpPidStr;
+
+        const { data: insertData, error: insertError } = await supabase
+          .from('cart_items')
+          .insert([{
+            user_id: currentUser.id,
+            product_id: pidToInsert,
+            quantity: tmpQty,
+            added_at: new Date().toISOString()
+          }]);
+
+        if (insertError) {
+          console.warn('syncTempCartToDatabase: insert error for product', tmpPidStr, insertError);
+        }
+      }
+    }
+
+    clearTempCart();
+    await loadCart();
+    updateCartBadge();
+  } catch (error) {
+    console.error('Error syncing temp cart:', error);
+  }
+}
 
 // ==============================================
 // 5. CART UI
@@ -1090,169 +1193,6 @@ function closeCart() {
   if (backdrop) backdrop.hidden = true;
 }
 
-// ---- Replace addToCart (guest branch now normalizes IDs) ----
-async function addToCart(productId, quantity = 1) {
-  const pid = String(productId);
-  if (currentUser && supabase) {
-    // Logged in branch unchanged (keeps using DB)
-    try {
-      const { data: existing } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .eq('product_id', productId)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('cart_items')
-          .update({ quantity: (existing.quantity || 0) + Number(quantity) })
-          .eq('id', existing.id);
-      } else {
-        await supabase
-          .from('cart_items')
-          .insert([{
-            user_id: currentUser.id,
-            product_id: productId,
-            quantity: Number(quantity),
-            added_at: new Date().toISOString()
-          }]);
-      }
-    } catch (error) {
-      console.error('Error adding to cart (DB):', error);
-      showMessage('Failed to add to cart', 'error');
-      return;
-    }
-  } else {
-    // Guest: store product_id as STRING for consistent matching
-    const cart = getTempCart();
-    const existingItem = cart.find(item => String(item.product_id) === pid);
-
-    if (existingItem) {
-      existingItem.quantity = Number(existingItem.quantity || 0) + Number(quantity);
-    } else {
-      cart.push({ product_id: pid, quantity: Number(quantity) });
-    }
-
-    saveTempCart(cart);
-  }
-
-  await loadCart();
-  updateCartBadge();
-  showMessage('Added to cart!', 'success');
-}
-
-// ---- Replace updateCartItemQuantity ----
-async function updateCartItemQuantity(productId, newQuantity) {
-  const pid = String(productId);
-  if (newQuantity < 1) {
-    await removeFromCart(productId);
-    return;
-  }
-
-  if (currentUser && supabase) {
-    try {
-      await supabase
-        .from('cart_items')
-        .update({ quantity: Number(newQuantity) })
-        .eq('user_id', currentUser.id)
-        .eq('product_id', productId);
-    } catch (error) {
-      console.error('Error updating quantity (DB):', error);
-    }
-  } else {
-    const cart = getTempCart();
-    const item = cart.find(i => String(i.product_id) === pid);
-    if (item) {
-      item.quantity = Number(newQuantity);
-      saveTempCart(cart);
-    }
-  }
-
-  await loadCart();
-  updateCartBadge();
-}
-
-// ---- Replace removeFromCart ----
-async function removeFromCart(productId) {
-  const pid = String(productId);
-  if (currentUser && supabase) {
-    try {
-      await supabase
-        .from('cart_items')
-        .delete()
-        .eq('user_id', currentUser.id)
-        .eq('product_id', productId);
-    } catch (error) {
-      console.error('Error removing from cart (DB):', error);
-    }
-  } else {
-    const cart = getTempCart().filter(item => String(item.product_id) !== pid);
-    saveTempCart(cart);
-  }
-
-  await loadCart();
-  updateCartBadge();
-  showMessage('Removed from cart', 'success');
-}
-
-async function syncTempCartToDatabase() {
-  if (!currentUser || !supabase) return;
-
-  const tempCart = getTempCart();
-  if (!Array.isArray(tempCart) || tempCart.length === 0) {
-    await loadCart();
-    return;
-  }
-
-  try {
-    const { data: existingItems = [] } = await supabase
-      .from('cart_items')
-      .select('*')
-      .eq('user_id', currentUser.id);
-
-    for (const tmp of tempCart) {
-      const tmpPidStr = String(tmp.product_id);
-      const tmpQty = Number(tmp.quantity || 0);
-
-      // find existing by string compare (works across number/string stored values)
-      const existing = existingItems.find(e => String(e.product_id) === tmpPidStr);
-
-      if (existing) {
-        // update quantity
-        await supabase
-          .from('cart_items')
-          .update({ quantity: (existing.quantity || 0) + tmpQty })
-          .eq('id', existing.id);
-      } else {
-        // decide whether to insert numeric id or string id
-        const maybeNum = Number(tmpPidStr);
-        const pidToInsert = (Number.isInteger(maybeNum) && String(maybeNum) === tmpPidStr) ? maybeNum : tmpPidStr;
-
-        const { data: insertData, error: insertError } = await supabase
-          .from('cart_items')
-          .insert([{
-            user_id: currentUser.id,
-            product_id: pidToInsert,
-            quantity: tmpQty,
-            added_at: new Date().toISOString()
-          }]);
-
-        if (insertError) {
-          console.warn('syncTempCartToDatabase: insert error for product', tmpPidStr, insertError);
-        }
-      }
-    }
-
-    clearTempCart();
-    await loadCart();
-    updateCartBadge();
-  } catch (error) {
-    console.error('Error syncing temp cart:', error);
-  }
-}
-
-
 async function loadCart() {
   const cartItemsContainer = document.getElementById('cart-items');
   const subtotalEl = document.getElementById('cart-subtotal');
@@ -1289,6 +1229,15 @@ async function loadCart() {
       </div>
     `;
     if (subtotalEl) subtotalEl.textContent = 'RWF 0';
+    
+    // Disable checkout button if cart is empty
+    const checkoutBtn = document.getElementById('checkout');
+    if (checkoutBtn) {
+      checkoutBtn.disabled = true;
+      checkoutBtn.style.opacity = '0.6';
+      checkoutBtn.style.cursor = 'not-allowed';
+      checkoutBtn.title = 'Cart is empty';
+    }
     return;
   }
 
@@ -1417,48 +1366,24 @@ async function loadCart() {
     cartItemsContainer.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Error loading cart</div>';
     if (subtotalEl) subtotalEl.textContent = 'RWF 0';
   }
-  // In the loadCart function, after calculating the cart items:
-const checkoutBtn = document.getElementById('checkout');
-if (checkoutBtn) {
-  if (totalItems === 0) {
-    checkoutBtn.disabled = true;
-    checkoutBtn.style.opacity = '0.6';
-    checkoutBtn.style.cursor = 'not-allowed';
-    checkoutBtn.title = 'Cart is empty';
-  } else {
-    checkoutBtn.disabled = false;
-    checkoutBtn.style.opacity = '1';
-    checkoutBtn.style.cursor = 'pointer';
-    checkoutBtn.title = 'Proceed to checkout';
-  }
-}
-}
 
-
-// ---- Replace updateCartBadge (simple normalization) ----
-async function updateCartBadge() {
-  const badges = document.querySelectorAll('#cart-badge');
-  let totalItems = 0;
-
-  if (currentUser && supabase) {
-    try {
-      const { data } = await supabase
-        .from('cart_items')
-        .select('quantity')
-        .eq('user_id', currentUser.id);
-      if (Array.isArray(data)) totalItems = data.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    } catch (error) {
-      console.error('Error updating badge (DB):', error);
+  // **FIX**: Calculate totalItems based on the cartItems array
+  const totalItems = cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  
+  const checkoutBtn = document.getElementById('checkout');
+  if (checkoutBtn) {
+    if (totalItems === 0) {
+      checkoutBtn.disabled = true;
+      checkoutBtn.style.opacity = '0.6';
+      checkoutBtn.style.cursor = 'not-allowed';
+      checkoutBtn.title = 'Cart is empty';
+    } else {
+      checkoutBtn.disabled = false;
+      checkoutBtn.style.opacity = '1';
+      checkoutBtn.style.cursor = 'pointer';
+      checkoutBtn.title = 'Proceed to checkout';
     }
-  } else {
-    const cart = getTempCart();
-    if (Array.isArray(cart)) totalItems = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   }
-
-  badges.forEach(badge => {
-    badge.textContent = totalItems;
-    badge.style.display = totalItems > 0 ? 'flex' : 'none';
-  });
 }
 
 async function getCartItemCount() {
@@ -1485,8 +1410,6 @@ async function getCartItemCount() {
 
   return totalItems;
 }
-
-
 
 async function handleCheckout() {
   // Check if cart is empty
@@ -1559,35 +1482,70 @@ window.addToCart = addToCart;
 // 7. UTILITIES
 // ==============================================
 
-function showMessage(text, type = 'info') {
-  let msg = document.getElementById('global-message');
-  
-  if (!msg) {
-    msg = document.createElement('div');
-    msg.id = 'global-message';
-    msg.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;font-weight:700;z-index:10001;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
-    document.body.appendChild(msg);
+// ---------------------------
+// Utility: refresh product card icons based on current cart
+// ---------------------------
+async function refreshProductInCartStates() {
+  const inCartSet = new Set();
+
+  try {
+    // temp/local cart
+    if (typeof getTempCart === 'function') {
+      const temp = getTempCart() || [];
+      (temp || []).forEach(i => { if (i?.product_id != null) inCartSet.add(String(i.product_id)); });
+    } else {
+      const raw = localStorage.getItem('echad_temp_cart') || localStorage.getItem('tempCart') || '[]';
+      JSON.parse(raw || '[]').forEach(i => { if (i?.product_id != null) inCartSet.add(String(i.product_id)); });
+    }
+
+    // db cart for signed-in user
+    if (currentUser && typeof supabase !== 'undefined' && supabase) {
+      try {
+        const { data } = await supabase.from('cart_items').select('product_id').eq('user_id', currentUser.id);
+        (data || []).forEach(it => inCartSet.add(String(it.product_id)));
+      } catch (e) {
+        // ignore DB errors — we still use temp cart
+      }
+    }
+  } catch (e) {
+    console.warn('refreshProductInCartStates error', e);
   }
+
+  // Toggle class on all product cards
+  document.querySelectorAll('.cart-icon-wrapper').forEach(wrapper => {
+    const pid = wrapper.getAttribute('data-product-id');
+    const icon = wrapper.querySelector('.cart-icon');
+    if (!icon) return;
+    if (pid != null && inCartSet.has(String(pid))) icon.classList.add('in-cart');
+    else icon.classList.remove('in-cart');
+  });
+}
+
+// Clean URLs - Remove .html extension
+function setupCleanURLs() {
+  // Update all internal links to remove .html
+  document.querySelectorAll('a[href]').forEach(link => {
+    const href = link.getAttribute('href');
+    if (href && href.endsWith('.html') && !href.startsWith('http')) {
+      link.setAttribute('href', href.replace('.html', ''));
+    }
+  });
   
-  const colors = {
-    error: { bg: '#ffecec', text: '#c62828' },
-    success: { bg: '#e8f5e9', text: '#2e7d32' },
-    info: { bg: '#fff4f7', text: '#ff9db1' }
-  };
-  
-  const color = colors[type] || colors.info;
-  msg.style.backgroundColor = color.bg;
-  msg.style.color = color.text;
-  msg.textContent = text;
-  msg.style.display = 'block';
-  
-  setTimeout(() => {
-    msg.style.display = 'none';
-  }, 3000);
+  // Handle navigation without .html
+  window.addEventListener('click', function(e) {
+    const link = e.target.closest('a');
+    if (link && link.getAttribute('href') && !link.getAttribute('href').includes('.html') && 
+        !link.getAttribute('href').startsWith('http') && !link.getAttribute('href').startsWith('#')) {
+      e.preventDefault();
+      const href = link.getAttribute('href');
+      window.location.href = href + '.html';
+    }
+  });
 }
 
 // ==============================================
-// MOBILE SIDEBAR MENU (LEFT SLIDE)
+// 8. MOBILE SIDEBAR MENU (LEFT SLIDE)
+// (This is the more robust version)
 // ==============================================
 
 function setupMobileMenu() {
@@ -1667,19 +1625,9 @@ function setupMobileMenu() {
   });
 }
 
-// Initialize mobile menu
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupMobileMenu);
-} else {
-  setupMobileMenu();
-}
-
-// Also call it on window load as backup
-window.addEventListener('load', () => {
-  if (typeof setupMobileMenu === 'function') {
-    setupMobileMenu();
-  }
-});
+// ==============================================
+// 9. APP INITIALIZER
+// ==============================================
 
 // ---------------------------
 // App initializer (fixes missing initializeApp error)
@@ -1719,7 +1667,22 @@ function initializeApp() {
   }
 }
 
-// Also call initializeApp on load if your existing code expects it
+// Call this function when the page loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
+
+// Also call it on window load as backup
+window.addEventListener('load', () => {
+  if (typeof setupMobileMenu === 'function') {
+    setupMobileMenu();
+  }
+});
+
+
+// Call initializeApp on load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
@@ -1731,60 +1694,10 @@ window.addEventListener('load', () => {
   if (!initializeApp._ran) initializeApp();
 });
 
-
 // ==============================================
-// 8. START THE APP
+// 10. REFINED CART FUNCTIONS
+// (These are the "better duplicates" with more features)
 // ==============================================
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-  initializeApp();
-}
-
-// Also run on page load as fallback
-window.addEventListener('load', () => {
-  if (!supabase) initializeApp();
-});
-
-// ---------------------------
-// Utility: refresh product card icons based on current cart
-// ---------------------------
-async function refreshProductInCartStates() {
-  const inCartSet = new Set();
-
-  try {
-    // temp/local cart
-    if (typeof getTempCart === 'function') {
-      const temp = getTempCart() || [];
-      (temp || []).forEach(i => { if (i?.product_id != null) inCartSet.add(String(i.product_id)); });
-    } else {
-      const raw = localStorage.getItem('echad_temp_cart') || localStorage.getItem('tempCart') || '[]';
-      JSON.parse(raw || '[]').forEach(i => { if (i?.product_id != null) inCartSet.add(String(i.product_id)); });
-    }
-
-    // db cart for signed-in user
-    if (currentUser && typeof supabase !== 'undefined' && supabase) {
-      try {
-        const { data } = await supabase.from('cart_items').select('product_id').eq('user_id', currentUser.id);
-        (data || []).forEach(it => inCartSet.add(String(it.product_id)));
-      } catch (e) {
-        // ignore DB errors — we still use temp cart
-      }
-    }
-  } catch (e) {
-    console.warn('refreshProductInCartStates error', e);
-  }
-
-  // Toggle class on all product cards
-  document.querySelectorAll('.cart-icon-wrapper').forEach(wrapper => {
-    const pid = wrapper.getAttribute('data-product-id');
-    const icon = wrapper.querySelector('.cart-icon');
-    if (!icon) return;
-    if (pid != null && inCartSet.has(String(pid))) icon.classList.add('in-cart');
-    else icon.classList.remove('in-cart');
-  });
-}
 
 // ---------------------------
 // addToCart (keep DB logic, but update icons after change)
@@ -1913,85 +1826,3 @@ async function updateCartBadge() {
   // Also keep product icons in sync (useful if updateBadge called after external change)
   try { await refreshProductInCartStates(); } catch (e) { /* ignore */ }
 }
-// ==============================================
-// MOBILE MENU FIX
-// ==============================================
-
-function setupMobileMenu() {
-  const bar = document.getElementById('bar');
-  const close = document.getElementById('close');
-  const nav = document.getElementById('navbar');
-  const body = document.body;
-  
-  if (bar && nav) {
-    bar.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      nav.classList.add('active');
-      body.style.overflow = 'hidden'; // Prevent scrolling when menu is open
-    });
-  }
-  
-  if (close && nav) {
-    close.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      nav.classList.remove('active');
-      body.style.overflow = ''; // Restore scrolling
-    });
-  }
-  
-  // Close menu when clicking outside
-  document.addEventListener('click', (e) => {
-    if (nav && nav.classList.contains('active')) {
-      if (!nav.contains(e.target) && e.target !== bar) {
-        nav.classList.remove('active');
-        body.style.overflow = '';
-      }
-    }
-  });
-  
-  // Close menu when clicking on a link
-  if (nav) {
-    const navLinks = nav.querySelectorAll('a');
-    navLinks.forEach(link => {
-      link.addEventListener('click', () => {
-        nav.classList.remove('active');
-        body.style.overflow = '';
-      });
-    });
-  }
-}
-
-// Call this function when the page loads
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupMobileMenu);
-} else {
-  setupMobileMenu();
-}
-
-// Clean URLs - Remove .html extension
-function setupCleanURLs() {
-  // Update all internal links to remove .html
-  document.querySelectorAll('a[href]').forEach(link => {
-    const href = link.getAttribute('href');
-    if (href && href.endsWith('.html') && !href.startsWith('http')) {
-      link.setAttribute('href', href.replace('.html', ''));
-    }
-  });
-  
-  // Handle navigation without .html
-  window.addEventListener('click', function(e) {
-    const link = e.target.closest('a');
-    if (link && link.getAttribute('href') && !link.getAttribute('href').includes('.html') && 
-        !link.getAttribute('href').startsWith('http') && !link.getAttribute('href').startsWith('#')) {
-      e.preventDefault();
-      const href = link.getAttribute('href');
-      window.location.href = href + '.html';
-    }
-  });
-}
-
-// Call this function in your initializeApp function
-// Add this line inside initializeApp():
-// setupCleanURLs();
