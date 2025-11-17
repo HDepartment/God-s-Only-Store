@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Admin Dashboard - God's Only Store</title>
-  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
@@ -135,6 +134,25 @@
     body.mobile .sidebar{display:none}
     body.mobile .bottom-nav{display:flex}
     body.mobile .product-card{width:100%}
+    /* Category Filter Buttons */
+    .filter-container { display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; }
+    .filter-btn {
+      padding: 8px 16px;
+      border: 1px solid #ff9db1;
+      background: #fff;
+      color: #333;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .filter-btn.active {
+      background: #ff9db1;
+      color: #fff;
+      border-color: #ff9db1;
+    }
+    .filter-btn:hover { opacity: 0.8; }
   </style>
 </head>
 <body>
@@ -227,6 +245,15 @@
               </script>
             </div>
             <div>
+              <label>Category</label>
+              <select id="prodCategory">
+                <option value="Dresses">Dresses</option>
+                <option value="Skirts">Skirts</option>
+                <option value="Tops">Tops</option>
+                <option value="Accessories">Accessories</option>
+              </select>
+            </div>
+            <div>
               <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
                 <input id="prodFeatured" type="checkbox" />
                 <span>Mark as featured product</span>
@@ -267,6 +294,15 @@
     <!-- PRODUCTS TAB -->
     <section id="tab-products" class="card tab-panel">
       <h3>All Products</h3>
+      
+      <div class="filter-container" style="margin-top:12px; display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+        <button class="filter-btn active" onclick="filterAdminProducts('All', this)">All</button>
+        <button class="filter-btn" onclick="filterAdminProducts('Dresses', this)">Dresses</button>
+        <button class="filter-btn" onclick="filterAdminProducts('Skirts', this)">Skirts</button>
+        <button class="filter-btn" onclick="filterAdminProducts('Tops', this)">Tops</button>
+        <button class="filter-btn" onclick="filterAdminProducts('Accessories', this)">Accessories</button>
+      </div>
+
       <div style="margin-top:10px;overflow:auto">
         <div id="productsGrid" class="products-grid"></div>
       </div>
@@ -625,9 +661,22 @@
       }
     }
 
+
+    let currentAdminFilter = 'All';
+
+    async function filterAdminProducts(category, btnElement) {
+      // Update UI buttons
+      document.querySelectorAll('#tab-products .filter-btn').forEach(b => b.classList.remove('active'));
+      if(btnElement) btnElement.classList.add('active');
+      
+      currentAdminFilter = category;
+      await loadProducts();
+    }
+
     async function loadProducts() {
       const grid = document.getElementById('productsGrid');
       if (!grid) return;
+      
       grid.innerHTML = '<div style="padding:20px;color:#666;">Loading products...</div>';
 
       if (!supabase) {
@@ -636,43 +685,52 @@
       }
 
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('products')
           .select('*')
           .order('created_at', { ascending: false });
+
+        // Apply filter
+        if (currentAdminFilter !== 'All') {
+          query = query.eq('category', currentAdminFilter);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
         grid.innerHTML = '';
         if (!data || data.length === 0) {
-          grid.innerHTML = '<div class="muted">No products yet.</div>';
+          grid.innerHTML = '<div class="muted">No products found.</div>';
           return;
         }
 
         data.forEach(p => {
           const isFeatured = !!p.featured_products;
-          const prodId = escapeHtml(String(p.id));
+          const prodId = String(p.id); // Ensure ID is string
           const card = document.createElement('div');
           card.className = 'product-card';
 
+          // (Your existing card HTML structure goes here)
           card.innerHTML = `
             <img src="${p.image_url || 'https://via.placeholder.com/180/ffe6f0/ff6fb5?text=No+Img'}" 
-                 style="width:180px;height:180px;object-fit:cover;border-radius:8px;"/>
+                style="width:180px;height:180px;object-fit:cover;border-radius:8px;"/>
             <strong>${escapeHtml(p.name || '')}</strong>
             <div style="font-size:13px;color:#333;min-height:36px;">${escapeHtml(p.description || '')}</div>
+            <div style="font-size:12px;color:#666;margin-bottom:4px;">${escapeHtml(p.category || 'Uncategorized')}</div>
             <div>RWF ${p.price || 0}</div>
             <div class="small-muted" style="margin-top:6px;">Stock: <span class="stock-value" data-id="${prodId}">${p.stock || 0}</span></div>
 
             <div class="stock-controls" style="margin-top:8px;">
-              <button class="dec-stock" title="Decrease stock" data-id="${prodId}"><i class="fa-solid fa-minus"></i></button>
-              <input class="stock-input" type="number" min="0" value="${p.stock || 0}" data-id="${prodId}" />
-              <button class="inc-stock" title="Increase stock" data-id="${prodId}"><i class="fa-solid fa-plus"></i></button>
-              <button class="save-stock-btn" data-id="${prodId}">Save</button>
+                <button class="dec-stock" title="Decrease stock" data-id="${prodId}"><i class="fa-solid fa-minus"></i></button>
+                <input class="stock-input" type="number" min="0" value="${p.stock || 0}" data-id="${prodId}" />
+                <button class="inc-stock" title="Increase stock" data-id="${prodId}"><i class="fa-solid fa-plus"></i></button>
+                <button class="save-stock-btn" data-id="${prodId}">Save</button>
             </div>
 
             <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
               <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
-                <input type="checkbox" class="featured-checkbox" data-id="${escapeHtml(String(p.id))}" ${isFeatured ? 'checked' : ''} />
+                <input type="checkbox" class="featured-checkbox" data-id="${prodId}" ${isFeatured ? 'checked' : ''} />
                 <span style="font-size:13px;">Featured</span>
               </label>
               <div style="margin-left:auto;">
@@ -680,15 +738,17 @@
               </div>
             </div>
           `;
-
           grid.appendChild(card);
         });
-
-        attachProductControlHandlers();
+        
+        // Re-attach event listeners (for stock buttons, delete, etc.)
+        if (typeof attachProductControlHandlers === 'function') {
+            attachProductControlHandlers();
+        }
 
       } catch (err) {
         console.error('Load products error:', err);
-        grid.innerHTML = '<div class="muted">Error: ' + escapeHtml(err.message || String(err)) + '</div>';
+        grid.innerHTML = '<div class="muted">Error: ' + (err.message || String(err)) + '</div>';
       }
     }
 
@@ -929,6 +989,7 @@
       const price = parseInt(document.getElementById('prodPrice').value || 0, 10);
       const qty = parseInt(document.getElementById('prodQty').value || 0, 10);
       const desc = document.getElementById('prodDesc').value.trim();
+      const category = document.getElementById('prodCategory').value; 
       const featured = !!document.getElementById('prodFeatured').checked;
       const statusEl = document.getElementById('uploadStatus');
 
@@ -985,6 +1046,7 @@
             price,
             stock: qty,
             description: desc,
+            category: category,
             image_url: publicUrl,
             owner: user.id,
             featured_products: featured
@@ -1027,6 +1089,5 @@
   </script>
 </body>
 </html>
-
 
 
