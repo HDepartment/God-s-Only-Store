@@ -11,6 +11,7 @@ if ('loading' in HTMLImageElement.prototype) {
   document.body.appendChild(script);
 }
 
+
 // Reduce animations on low-end devices
 if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) {
   document.documentElement.style.setProperty('--animation-duration', '0.1s');
@@ -879,8 +880,13 @@ function attachUserMenuHandlers() {
   }
 
   if (backdrop) {
-    backdrop.addEventListener('click', closeDropdown);
+    // close dropdown but stop event from bubbling to other global handlers (eg. mobile menu close)
+    backdrop.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeDropdown();
+    });
   }
+
 
   if (adminPanelBtn) adminPanelBtn.addEventListener('click', function() { 
     closeDropdown();
@@ -1543,6 +1549,10 @@ function setupCleanURLs() {
   });
 }
 
+// ==============================================
+// MOBILE SIDEBAR MENU (LEFT SLIDE)
+// ==============================================
+
 function setupMobileMenu() {
   const bar = document.getElementById('bar');
   const close = document.getElementById('close');
@@ -1567,15 +1577,29 @@ function setupMobileMenu() {
     });
   }
   
-  // Close menu when clicking outside
-  document.addEventListener('click', (e) => {
-    if (nav && nav.classList.contains('active')) {
-      if (!nav.contains(e.target) && e.target !== bar) {
-        nav.classList.remove('active');
-        body.style.overflow = '';
-      }
+  // Close menu when clicking outside, but ignore clicks inside the user dropdown/backdrop
+  function mobileOutsideClickHandler(e) {
+    const target = e.target;
+    const userDropdown = document.getElementById('userDropdown');
+    const userBackdrop = document.getElementById('userDropdownBackdrop');
+
+    if (!nav || !nav.classList.contains('active')) return;
+
+    const clickedInsideNav = nav.contains(target) || target === bar;
+    const clickedInsideUserDropdown = (userDropdown && userDropdown.contains(target)) ||
+                                      (userBackdrop && target === userBackdrop);
+
+    if (!clickedInsideNav && !clickedInsideUserDropdown) {
+      nav.classList.remove('active');
+      body.style.overflow = '';
     }
-  });
+  }
+
+  // use the same handler for click and touchstart (better mobile behavior)
+  document.removeEventListener('click', /* previous anonymous handler */);
+  document.addEventListener('click', mobileOutsideClickHandler);
+  document.addEventListener('touchstart', mobileOutsideClickHandler, { passive: true });
+
   
   // Close menu when clicking on a link
   if (nav) {
@@ -1595,6 +1619,21 @@ if (document.readyState === 'loading') {
 } else {
   setupMobileMenu();
 }
+
+// Initialize mobile menu
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupMobileMenu);
+} else {
+  setupMobileMenu();
+}
+
+// Also call it on window load as backup
+window.addEventListener('load', () => {
+  if (typeof setupMobileMenu === 'function') {
+    setupMobileMenu();
+  }
+});
+
 
 // ==============================================
 // 9. APP INITIALIZER
@@ -1797,4 +1836,3 @@ async function updateCartBadge() {
   // Also keep product icons in sync (useful if updateBadge called after external change)
   try { await refreshProductInCartStates(); } catch (e) { /* ignore */ }
 }
-
